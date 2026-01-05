@@ -1,103 +1,98 @@
-﻿#include <SFML/Graphics.hpp>
+﻿/*
+==============================================================================
+Car Parking Sensor Simulation - Task 4 Modified
+==============================================================================
+Now includes:
+ - Car movement using keyboard
+ - Four diagonal sensors around the car
+ - Sensors change color on pillar collision
+ - Delta-time–based smooth motion
+ - Mathematical algorithms
+ - Playing sound
+ - MISRA guidelines
+ - ESC key to close program
+==============================================================================
+*/
+#include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <iostream>
-#include<SFML/Audio.hpp>
-
+#include <cmath>
 
 // ===============================
 // Constants
 // ===============================
-
 namespace constants {
-	// Window dimensions should be constexpr and have explicit types
-	constexpr unsigned int WINDOW_WIDTH = 1920U;    // MISRA: use unsigned for sizes
+	constexpr unsigned int WINDOW_WIDTH = 1920U;
 	constexpr unsigned int WINDOW_HEIGHT = 1080U;
-	constexpr float PI = 3.14; //#1Change: PI is now constexpr type
+	constexpr float PI = 3.14159265358979323846f;
 
 	// Parking sensor rectangle dimensions
-	constexpr float SENSOR_WIDTH = 30.0F;
-	constexpr float SENSOR_HEIGHT = 100.0F;
-
-	//Park collumn dimension
-	constexpr float collumnRadius = 25.0F; //#2Change: park collumn radius is a const
+	constexpr float SENSOR_WIDTH = 950.0F;
+	constexpr float SENSOR_HEIGHT = 500.0F;
+	constexpr float PILLAR_RADIUS = 25.0F;
 
 	// Simulation and layout
-	constexpr std::size_t SENSOR_COUNT = 4U;
-	constexpr float CAR_SPEED = 500.0F; // pixels per second
-	constexpr float CAR_ROTATION_SPEED = 2.5F;	
+	constexpr std::size_t SENSOR_COUNT = 5U; // 1 for car bounds + 4 diagonal sensors
+	constexpr float CAR_SPEED = 500.0F;
+	constexpr float CAR_ROTATION = 2.5F;
 
-	//THE COLORS
-	const sf::Color transGreen = sf::Color(0, 255, 0, 100);
-	const sf::Color transRed = sf::Color(255, 0, 0, 100);
-	const sf::Color hardWhite = sf::Color(255, 255, 255, 255);
-	const sf::Color lightYellow = sf::Color(235, 225, 52, 30);
-	const sf::Color mediumGray = sf::Color(100, 100, 100, 0);
-	const sf::Color strongRed = sf::Color(255, 0, 0, 30);
-	const sf::Color strongGreen = sf::Color(0, 255, 0, 30);
-	const sf::Color strongYellow = sf::Color(255, 255, 0, 60);
+	// Car and sensor scale down
+	constexpr float SCALE_DOWN_FACTOR{ 0.35F };
 
+	// Diagonal sensor properties
+	constexpr float SENSOR_CIRCLE_RADIUS = 15.0F;
+	constexpr float SENSOR_DETECTION_RANGE = 150.0F;
 }
+
 // ===============================
 // Utility Functions
 // ===============================
-/**
- * @brief Centers a sprite in the given render window.
- *
- * MISRA C++: Always use const references for read-only parameters.
- *            Avoid raw pointers unless necessary.
- */
 
 static void centerSprite(sf::Sprite& sprite, const sf::RenderWindow& window) {
 	const sf::FloatRect bounds = sprite.getLocalBounds();
-	// MISRA: Always use floating-point literals with suffix 'F'
 	sprite.setOrigin({ bounds.size.x / 2.0F, bounds.size.y / 2.0F });
-	sprite.setPosition({ 280.0F, 150.0F });
-	sprite.setScale({ 0.50F, 0.50F });
-	//#3Change:Hardcoded sprite centering
+	sprite.setPosition({ 280.0f, 150.0f });
+	sprite.setScale({ 0.5F, 0.5F });
 }
 
-/**
- * @brief Creates a vector of rectangular parking sensor indicators.
- *
- * MISRA: Functions should have single responsibility.
- *        Avoid global mutable data.
- */
 static std::vector<sf::RectangleShape> createSensorIndicators() {
 	std::vector<sf::RectangleShape> sensors;
-	sensors.reserve(constants::SENSOR_COUNT); // Avoid dynamic reallocations
+	sensors.reserve(1U);
 
-	constexpr float START_X = 800.0F;
-	constexpr float START_Y = 200.0F;
-	
+	constexpr float START_X = 20.0F;
+	constexpr float START_Y = 20.0F;
+
 	sf::RectangleShape sensor({ constants::SENSOR_WIDTH, constants::SENSOR_HEIGHT });
-	sensor.setFillColor(constants::lightYellow);
+	sensor.setFillColor(sf::Color(235, 225, 52, 0));
 	sensor.setPosition({ START_X, START_Y });
-	sensor.setScale({ 0.50F, 0.50F });
+	sensor.setScale({ constants::SCALE_DOWN_FACTOR, constants::SCALE_DOWN_FACTOR });
 	sensors.push_back(sensor);
-	//#4Change: Removed a 10 line for loop here
-	//replaced  with hardcoded lines above
 
-	sensor = sf::RectangleShape({ constants::SENSOR_WIDTH * 0.75,
-		constants::SENSOR_HEIGHT * 0.75 });
-	sensor.setFillColor(constants::mediumGray);
-	sensor.setPosition({ START_X + 1875, 20.0F });
-	sensor.setRotation({ sf::Angle(sf::degrees(90)) });
-	sensor.setOutlineThickness(2.0F);
-	sensors.push_back(sensor);
-	//#5Change: Removed an another for loop and replaced with above
-	return sensors; // Return by value (NRVO applies)
+	return sensors;
 }
 
-/**
- * @brief Loads a texture safely and logs any error.
- *
- * MISRA: Error handling must be explicit and deterministic.
- */
+// Create four diagonal sensor circles
+static std::vector<sf::CircleShape> createDiagonalSensors() {
+	std::vector<sf::CircleShape> sensors;
+	sensors.reserve(4U);
+
+	for (std::size_t i = 0U; i < 4U; ++i) {
+		sf::CircleShape sensor(constants::SENSOR_CIRCLE_RADIUS);
+		sensor.setOrigin({ constants::SENSOR_CIRCLE_RADIUS, constants::SENSOR_CIRCLE_RADIUS });
+		sensor.setFillColor(sf::Color(0, 255, 0, 200)); // Green by default
+		sensor.setOutlineColor(sf::Color::White);
+		sensor.setOutlineThickness(2.0f);
+		sensors.push_back(sensor);
+	}
+
+	return sensors;
+}
+
 [[nodiscard]] static sf::Texture loadTextureOrExit(const std::string& path) {
 	sf::Texture texture;
 	if (!texture.loadFromFile(path)) {
 		std::cerr << "Error: Failed to load texture from "
 			<< std::filesystem::absolute(path) << '\n';
-		// MISRA: Avoid abrupt termination, but here itâ€™s educational
 	}
 	return texture;
 }
@@ -105,124 +100,109 @@ static std::vector<sf::RectangleShape> createSensorIndicators() {
 std::array<sf::Vector2f, 4> getCorners(const sf::RectangleShape& r) {
 	const sf::Transform& t = r.getTransform();
 	sf::Vector2f size = r.getSize();
-	return{
-		t.transformPoint({0.0F, 0.0F}),
-		t.transformPoint({size.x, 0.0F}),
+
+	return {
+		t.transformPoint({0.f,       0.f}),
+		t.transformPoint({size.x,    0.f}),
 		t.transformPoint({size.x, size.y}),
-		t.transformPoint({0.0F, size.y})
+		t.transformPoint({0.f,    size.y})
 	};
 }
-//#6Change: Used the instructors solution for this
 
-static void updateSensorPositions(std::vector<sf::RectangleShape>& sensors,
-	const sf::Sprite& car)
-{
-	//Front left sensor
+// Calculate distance between two points
+static float calculateDistance(const sf::Vector2f& p1, const sf::Vector2f& p2) {
+	float dx = p2.x - p1.x;
+	float dy = p2.y - p1.y;
+	return std::sqrtf(dx * dx + dy * dy);
+}
+
+// Update diagonal sensor positions around the car
+static void updateDiagonalSensorPositions(
+	std::vector<sf::CircleShape>& diagonalSensors,
+	const sf::RectangleShape& carBounds,
+	const std::vector<sf::CircleShape>& pillars
+) {
+	// Get car corners (these are our sensor positions)
+	std::array<sf::Vector2f, 4> corners = getCorners(carBounds);
+
+	// Position each diagonal sensor at a corner
+	for (std::size_t i = 0U; i < 4U && i < diagonalSensors.size(); ++i) {
+		diagonalSensors[i].setPosition(corners[i]);
+
+		// Check distance to all pillars
+		float minDistance = constants::SENSOR_DETECTION_RANGE + 100.0f;
+
+		for (const auto& pillar : pillars) {
+			sf::Vector2f pillarCenter = pillar.getPosition() +
+				sf::Vector2f(constants::PILLAR_RADIUS, constants::PILLAR_RADIUS);
+			float distance = calculateDistance(corners[i], pillarCenter);
+
+			if (distance < minDistance) {
+				minDistance = distance;
+			}
+		}
+
+		// Change color based on distance
+		if (minDistance < 75.0f) {
+			diagonalSensors[i].setFillColor(sf::Color(255, 0, 0, 200)); // Red - very close
+		}
+		else if (minDistance < 120.0f) {
+			diagonalSensors[i].setFillColor(sf::Color(255, 165, 0, 200)); // Orange - close
+		}
+		else if (minDistance < constants::SENSOR_DETECTION_RANGE) {
+			diagonalSensors[i].setFillColor(sf::Color(255, 255, 0, 200)); // Yellow - medium
+		}
+		else {
+			diagonalSensors[i].setFillColor(sf::Color(0, 255, 0, 200)); // Green - safe
+		}
+	}
+}
+
+static void updateSensorPositions(std::vector<sf::RectangleShape>& sensors, const sf::Sprite& car) {
 	sensors[0].setOrigin(car.getOrigin());
 	sensors[0].setPosition(car.getPosition());
 	sensors[0].setRotation(car.getRotation());
-	std::array<sf::Vector2f, 4> carCorners = getCorners(sensors[0]);
-
-	//#7Change: Replced hardcoded lines with a for loop
-	// to get the functionality for all corners with a single for loop
-	for (size_t i = 10U; i < constants::SENSOR_COUNT; i++) {
-		std::array<sf::Vector2f, 4> sensorCorners = getCorners(sensors[i]);
-		bool xInside = true;
-		bool yInside = true;
-
-		for (std::size_t i_car = 0U; i_car < sensorCorners.size(); i_car++) {
-			bool isInsideMin = (std::min(sensorCorners[0].x, sensorCorners[2].x) 
-				< carCorners[i_car].x);
-
-			bool isInsideMax = (carCorners[i_car].x < std::max(sensorCorners[0].x,
-				sensorCorners[2].x));
-			if (!(isInsideMin && isInsideMax)) {
-				xInside = false;
-				break;
-			}
-		}
-		if (xInside) {
-			for (std::size_t i_car = 0U; i_car < sensorCorners.size(); i_car++) {
-				bool isInsideMin = (std::min(sensorCorners[0].y, sensorCorners[2].y) < carCorners[i_car].y);
-				bool isInsideMax = (carCorners[i_car].y < std::max(sensorCorners[0].y, sensorCorners[2].y));
-
-				if (!(isInsideMin && isInsideMax)) {
-					yInside = false;
-					break;
-				}
-			}
-		}
-		if (xInside && yInside) {
-			sensors[i].setFillColor(sf::Color(constants::strongRed));
-		}
-		else {
-			sensors[i].setFillColor(sf::Color(constants::strongGreen));
-		}
-	}
 }
 
-// FUNC TO HANDLE THE PARK INDICATOR, Test wheter the car is inside or not
-static bool parkOccupied(const sf::FloatRect& carBounds, const sf::FloatRect& parkBounds) {
-	const bool isLeftInside = carBounds.position.x >= parkBounds.position.x;
-
-	const bool isRightInside = (carBounds.position.x + carBounds.size.x)
-		<= (parkBounds.position.x + parkBounds.size.x);
-
-	const bool isTopInside = carBounds.position.y >= parkBounds.position.y;
-
-	const bool isBottomInside = (carBounds.position.y + carBounds.size.y)
-		<= (parkBounds.position.y + parkBounds.size.y);
-
-	return isLeftInside && isRightInside && isTopInside && isBottomInside;
-}
-//#8Change: More elegant way to calculate the distance between the car
-//and the collumns
-static float closestCollumnDistance(std::vector<sf::CircleShape>& collumns,
-	const sf::RectangleShape& car) {
+static float calcClosestPillarDistance(std::vector<sf::CircleShape>& pillars, const sf::RectangleShape& car) {
 	std::array<sf::Vector2f, 4> carCorners = getCorners(car);
-	float collumnDistance = constants::WINDOW_WIDTH;
-	for (size_t i = 0; i < collumns.size(); i++) {
+	float pillarDistance = constants::WINDOW_WIDTH;
+
+	for (size_t i = 0; i < pillars.size(); i++) {
+		sf::Vector2f pillarCenter = pillars[i].getPosition() +
+			sf::Vector2f(constants::PILLAR_RADIUS, constants::PILLAR_RADIUS);
+
 		for (size_t j = 0; j < carCorners.size(); j++) {
-		float firstX = collumns[i].getPosition().x;
-		float firstY = collumns[i].getPosition().y;
-		float secondX = carCorners[j].x;
-		float secondY = carCorners[j].y;
-		float collumn_car_distance = std::sqrtf(std::powf((secondX - firstX), 2.0f)
-			+ std::powf((secondY - firstY), 2.0f));
-		if (collumn_car_distance < collumnDistance) {
-			collumnDistance = collumn_car_distance;
+			float intr_distance = calculateDistance(carCorners[j], pillarCenter);
+
+			if (intr_distance < pillarDistance) {
+				pillarDistance = intr_distance;
 			}
 		}
 	}
-	return collumnDistance;
+
+	return pillarDistance;
 }
-//#9Change: replacing the hardcoded drawing of parking collumns
-//inside the main function to outside of it.
 
-static std::vector<sf::CircleShape> createParkingCollumns() {
-	std::vector<sf::CircleShape> collumns;
-	collumns.reserve(2U);
-	sf::CircleShape collumn;
+static std::vector<sf::CircleShape> createParkingPillars() {
+	std::vector<sf::CircleShape> pillars;
+	pillars.reserve(3u);
+	sf::CircleShape pillar;
 
-	collumn.setRadius(constants::collumnRadius);
-	collumn.setOutlineColor(sf::Color::Red);
-	collumn.setOutlineThickness(5);
-	collumn.setPosition({ 800, 500 });
-	collumns.push_back(collumn);
+	pillar.setRadius(constants::PILLAR_RADIUS);
+	pillar.setFillColor(sf::Color(100, 100, 100));
+	pillar.setOutlineColor(sf::Color::Red);
+	pillar.setOutlineThickness(5);
+	pillar.setPosition({ 800, 500 });
+	pillars.push_back(pillar);
 
-	collumn.setRadius(constants::collumnRadius);
-	collumn.setOutlineColor(sf::Color::Red);
-	collumn.setOutlineThickness(5);
-	collumn.setPosition({ 1550, 500 });
-	collumns.push_back(collumn);
+	pillar.setPosition({ 1550, 800 });
+	pillars.push_back(pillar);
 
-	collumn.setRadius(constants::collumnRadius);
-	collumn.setOutlineColor(sf::Color::Red);
-	collumn.setOutlineThickness(5);
-	collumn.setPosition({ 1810, 800 });
-	collumns.push_back(collumn);
+	pillar.setPosition({ 1810, 800 });
+	pillars.push_back(pillar);
 
-	return collumns;
+	return pillars;
 }
 
 // ===============================
@@ -230,168 +210,160 @@ static std::vector<sf::CircleShape> createParkingCollumns() {
 // ===============================
 
 int main() {
-	// ====================================
-	// Window setup
-	// ====================================
-
 	sf::RenderWindow window(
 		sf::VideoMode({ constants::WINDOW_WIDTH, constants::WINDOW_HEIGHT }),
-		"Car Parking Sensor Simulation - Task 2",
+		"Car Parking Sensor Simulation - Four Diagonal Sensors",
 		sf::State::Windowed
 	);
 	window.setFramerateLimit(60U);
-
-	// ====================================
-	// Resource setup
-	// ====================================
-	// 
-	//#10Change: create the objects here, in one place, and not in several
-	//other places chaotically in the code, deleted a huge section
-	//from the main() function
 
 	const sf::Texture carTexture = loadTextureOrExit("assets/car_background.png");
 	sf::Sprite carSprite(carTexture);
 	centerSprite(carSprite, window);
 
-	//Create the sensors
 	std::vector<sf::RectangleShape> sensors = createSensorIndicators();
+	std::vector<sf::CircleShape> diagonalSensors = createDiagonalSensors();
 	updateSensorPositions(sensors, carSprite);
 
-	//Create the parking collumns
-	std::vector<sf::CircleShape > collumns = createParkingCollumns();
+	std::vector<sf::CircleShape> pillars = createParkingPillars();
 
-	//Load the sound file to a buffer
 	const sf::SoundBuffer buffer("assets/beep.mp3");
 	sf::Sound sound(buffer);
+	float interval = 1.0f;
+	float pitch = 1.0f;
 
-	//Sound propertiess
-	float interval = 1.0F;
-	float pitch = 1.0F;
-
-	// ====================================
-	// Main loop
-	// ====================================
-	sf::Clock beeperTimer;
+	sf::Clock beepTimer;
 	sf::Clock clock;
 
 	while (window.isOpen()) {
 		const float deltaTime = clock.restart().asSeconds();
 
-		// ---- Handle events ----
 		while (auto event = window.pollEvent()) {
 			if (event->is<sf::Event::Closed>()) {
 				window.close();
 			}
 
-			// Window closed or escape key pressed: exit
-			if ((event->is<sf::Event::KeyPressed>() &&
-				event->getIf<sf::Event::KeyPressed>()->code == sf::Keyboard::Key::Space))
-				std::cout << "KeyPressed event has occured, key pressed is: Space\n";
+			// ESC key or Space key to close
+			if (event->is<sf::Event::KeyPressed>()) {
+				auto keyEvent = event->getIf<sf::Event::KeyPressed>();
+				if (keyEvent->code == sf::Keyboard::Key::Escape) {
+					std::cout << "ESC key pressed, closing program\n";
+					window.close();
+				}
+			}
+
+			// Left click to add pillar
+			if (event->is<sf::Event::MouseButtonPressed>() &&
+				event->getIf<sf::Event::MouseButtonPressed>()->button == sf::Mouse::Button::Left) {
+				sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+
+				sf::CircleShape newPillar;
+				newPillar.setRadius(constants::PILLAR_RADIUS);
+				newPillar.setFillColor(sf::Color(100, 100, 100));
+				newPillar.setOutlineColor(sf::Color::Red);
+				newPillar.setOutlineThickness(5);
+				newPillar.setPosition({ static_cast<float>(mousePos.x), static_cast<float>(mousePos.y) });
+
+				pillars.push_back(newPillar);
+				std::cout << "Pillar added at position: (" << mousePos.x << ", " << mousePos.y << ")\n";
+			}
+
+			// Right click to remove pillar
+			if (event->is<sf::Event::MouseButtonPressed>() &&
+				event->getIf<sf::Event::MouseButtonPressed>()->button == sf::Mouse::Button::Right) {
+				sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+				sf::Vector2f mousePosF(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
+
+				// Check if mouse is hovering over any pillar
+				for (auto it = pillars.begin(); it != pillars.end(); ++it) {
+					sf::Vector2f pillarCenter = it->getPosition() +
+						sf::Vector2f(constants::PILLAR_RADIUS, constants::PILLAR_RADIUS);
+					float distance = calculateDistance(mousePosF, pillarCenter);
+
+					// If mouse is within pillar radius, remove it
+					if (distance <= constants::PILLAR_RADIUS) {
+						std::cout << "Pillar removed at position: ("
+							<< it->getPosition().x << ", " << it->getPosition().y << ")\n";
+						pillars.erase(it);
+						break; // Only remove one pillar per click
+					}
+				}
+			}
 		}
 
 		// Movement logic
 		sf::Vector2f movement{ 0.0F, 0.0F };
-		float rotationChange = 0.0F;
+		sf::Angle angle = sf::degrees(0);
 
-		//Rotation information, first one is for degrees
-		//other for radians
-		float currentRotationDeg = carSprite.getRotation().asDegrees();
-		float currentRotationRad = currentRotationDeg * (constants::PI / 180.0F);
+		float rotDeg = carSprite.getRotation().asDegrees();
+		float rotRad = rotDeg * (constants::PI / 180.f);
 
-		// ---- Update logic ---
-		sf::Angle rotation;
+		sf::Vector2f forward{
+			std::cos(rotRad),
+			std::sin(rotRad)
+		};
 
-		//Store the rotaion in radians, first one is for the x axis
-		//second is for the y axis
-		const float forwardX = cos(currentRotationRad);
-		const float forwardY = sin(currentRotationRad);
-
-		//How much to adjust the car for each frame of movement
-		const float distancePerFrame = constants::CAR_SPEED * deltaTime;
-
-		// Car movment and rotation functionality, keys 
-		// W & S for going up or down
-		// A & D for turning (not moving), left or right
-		
-		//Moving forward
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::W) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Up)) {
-
-			movement.x += forwardX * distancePerFrame;
-			movement.y += forwardY * distancePerFrame;
+			movement += forward * (constants::CAR_SPEED * deltaTime);
 		}
-
-		//Moving backward
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::S) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Down)) {
-			movement.x -= forwardX * distancePerFrame;
-			movement.y -= forwardY * distancePerFrame;
+			movement -= forward * (constants::CAR_SPEED * deltaTime);
 		}
-
-		//Turning to the left
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::A) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Left)) {
-			rotation = sf::degrees(-constants::CAR_ROTATION_SPEED);
+			angle = sf::degrees(-constants::CAR_ROTATION);
 		}
-
-		//Turning to the right
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::D) || sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Right)) {
-			rotation = sf::degrees(constants::CAR_ROTATION_SPEED);
+			angle = sf::degrees(constants::CAR_ROTATION);
 		}
 
-		//Adjust the car, depending on the movement or rotation functionaltiy
-		carSprite.rotate(rotation);
 		carSprite.move(movement);
+		carSprite.rotate(angle);
 		updateSensorPositions(sensors, carSprite);
+		updateDiagonalSensorPositions(diagonalSensors, sensors[0], pillars);
 
-		//Calculate the distance from the collumn to the first sensor
-		float distance = closestCollumnDistance(collumns, sensors[0]);
-		std::cout << distance << std::endl;
+		// Distance measurement
+		float distance = calcClosestPillarDistance(pillars, sensors[0]);
 
-		//Change the color of the sensor, to indicate
-		//distance form the car
-		
-		//#11Change: make the beeper actually work, and play a sound
-		//change the color of the sensor at the same time
-		//functionality takes place here and not randomly in several
-		//other places in the code
-		
-		sensors[1].setOutlineThickness(1.0F);
-		if (distance < 125.0F) {
-			sensors[1].setOutlineColor(constants::strongRed);
-			interval = 0.15F;
-			pitch = 1.5F;
+		// Sound feedback based on distance
+		if (distance < 125.0f) {
+			interval = 0.15f;
+			pitch = 1.5f;
 		}
-		else if (distance < 140.0F) {
-			sensors[1].setOutlineColor(constants::strongYellow);
-			interval = 0.4F;
-			pitch = 1.2F;
+		else if (distance < 140.f) {
+			interval = 0.4f;
+			pitch = 1.2f;
 		}
-		else if (distance < 180.0F) {
-			sensors[1].setOutlineColor(constants::strongGreen);
-			interval = 1.0F;
-			pitch = 1.0F;
+		else if (distance < 180.f) {
+			interval = 1.0f;
+			pitch = 1.0f;
+		}
+		else {
+			pitch = 0.0f;
 		}
 
-		if (pitch != 0.0F) {
+		if (pitch != 0.0f) {
 			sound.setPitch(pitch);
-			if (beeperTimer.getElapsedTime().asSeconds() >= interval) {
+			if (beepTimer.getElapsedTime().asSeconds() >= interval) {
 				sound.play();
-				beeperTimer.restart();
+				beepTimer.restart();
 			}
 		}
 
-		//#12Change: Erased a section drawing the parking collumns
-		//configuring them, and all their properties, replaced with a
-		//more elegant solution
-
-		// ---- Rendering ----
+		// Rendering
 		window.clear(sf::Color(30, 30, 30));
-		window.draw(carSprite);
 
-		for (const auto& collumn : collumns) {
-			window.draw(collumn);
+		for (const auto& pillar : pillars) {
+			window.draw(pillar);
 		}
 
 		window.draw(carSprite);
-		
+		carSprite.setScale({ constants::SCALE_DOWN_FACTOR, constants::SCALE_DOWN_FACTOR });
+
+		// Draw diagonal sensors on top
+		for (const auto& sensor : diagonalSensors) {
+			window.draw(sensor);
+		}
+
 		window.display();
 	}
 

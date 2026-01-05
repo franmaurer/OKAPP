@@ -1,6 +1,6 @@
 ﻿/*
 ==============================================================================
-Car Parking Sensor Simulation - Task 4 Modified
+Car Parking Sensor Simulation
 ==============================================================================
 Now includes:
  - Car movement using keyboard
@@ -243,7 +243,7 @@ int main() {
 				window.close();
 			}
 
-			// ESC key
+			// ESC key functionality to close the program instantly
 			if (event->is<sf::Event::KeyPressed>()) {
 				auto keyEvent = event->getIf<sf::Event::KeyPressed>();
 				if (keyEvent->code == sf::Keyboard::Key::Escape) {
@@ -277,7 +277,7 @@ int main() {
 				// Check if mouse is hovering over any pillar
 				for (auto it = pillars.begin(); it != pillars.end(); ++it) {
 					sf::Vector2f pillarCenter = it->getPosition() +
-						sf::Vector2f(constants::PILLAR_RADIUS, constants::PILLAR_RADIUS);
+					sf::Vector2f(constants::PILLAR_RADIUS, constants::PILLAR_RADIUS);
 					float distance = calculateDistance(mousePosF, pillarCenter);
 
 					// If mouse is within pillar radius, remove it
@@ -316,6 +316,7 @@ int main() {
 			angle = sf::degrees(constants::CAR_ROTATION);
 		}
 
+		// Car logic, movement, rotation and adjust the position of the sensors
 		carSprite.move(movement);
 		carSprite.rotate(angle);
 		updateSensorPositions(sensors, carSprite);
@@ -351,11 +352,9 @@ int main() {
 
 		// Rendering
 		window.clear(sf::Color(30, 30, 30));
-
 		for (const auto& pillar : pillars) {
 			window.draw(pillar);
 		}
-
 		window.draw(carSprite);
 		carSprite.setScale({ constants::SCALE_DOWN_FACTOR, constants::SCALE_DOWN_FACTOR });
 
@@ -363,9 +362,7 @@ int main() {
 		for (const auto& sensor : diagonalSensors) {
 			window.draw(sensor);
 		}
-
 		window.display();
 	}
-
 	return 0;
 }

@@ -57,7 +57,7 @@ static void centerSprite(sf::Sprite& sprite, const sf::RenderWindow& window) {
 
 static std::vector<sf::RectangleShape> createSensorIndicators() {
 	std::vector<sf::RectangleShape> sensors;
-	sensors.reserve(1U);
+	sensors.reserve(4U);
 
 	constexpr float START_X = 20.0F;
 	constexpr float START_Y = 20.0F;
@@ -183,7 +183,7 @@ static float calcClosestPillarDistance(std::vector<sf::CircleShape>& pillars, co
 
 	return pillarDistance;
 }
-
+// The three hard code, parking pillars, they too can be removed with a right click
 static std::vector<sf::CircleShape> createParkingPillars() {
 	std::vector<sf::CircleShape> pillars;
 	pillars.reserve(3u);

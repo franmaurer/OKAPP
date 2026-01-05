@@ -243,7 +243,7 @@ int main() {
 				window.close();
 			}
 
-			// ESC key or Space key to close
+			// ESC key
 			if (event->is<sf::Event::KeyPressed>()) {
 				auto keyEvent = event->getIf<sf::Event::KeyPressed>();
 				if (keyEvent->code == sf::Keyboard::Key::Escape) {

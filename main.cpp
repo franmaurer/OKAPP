@@ -11,6 +11,7 @@ Now includes:
  - Playing sound
  - MISRA guidelines
  - ESC key to close program
+ - Car centered in window
 ==============================================================================
 */
 #include <SFML/Graphics.hpp>
@@ -51,8 +52,13 @@ namespace constants {
 static void centerSprite(sf::Sprite& sprite, const sf::RenderWindow& window) {
 	const sf::FloatRect bounds = sprite.getLocalBounds();
 	sprite.setOrigin({ bounds.size.x / 2.0F, bounds.size.y / 2.0F });
-	sprite.setPosition({ 280.0f, 150.0f });
-	sprite.setScale({ 0.5F, 0.5F });
+
+	// Center the car in the window
+	sprite.setPosition({
+		constants::WINDOW_WIDTH / 2.0F,
+		constants::WINDOW_HEIGHT / 2.0F
+		});
+	sprite.setScale({ constants::SCALE_DOWN_FACTOR, constants::SCALE_DOWN_FACTOR });
 }
 
 static std::vector<sf::RectangleShape> createSensorIndicators() {
@@ -143,13 +149,13 @@ static void updateDiagonalSensorPositions(
 		}
 
 		// Change color based on distance
-		if (minDistance < 75.0f) {
+		if (minDistance < 125.0F) {
 			diagonalSensors[i].setFillColor(sf::Color(255, 0, 0, 200)); // Red - very close
 		}
-		else if (minDistance < 120.0f) {
+		else if (minDistance < 140.0F) {
 			diagonalSensors[i].setFillColor(sf::Color(255, 165, 0, 200)); // Orange - close
 		}
-		else if (minDistance < constants::SENSOR_DETECTION_RANGE) {
+		else if (minDistance < 180.0F) {
 			diagonalSensors[i].setFillColor(sf::Color(255, 255, 0, 200)); // Yellow - medium
 		}
 		else {
@@ -183,6 +189,7 @@ static float calcClosestPillarDistance(std::vector<sf::CircleShape>& pillars, co
 
 	return pillarDistance;
 }
+
 // The three hard code, parking pillars, they too can be removed with a right click
 static std::vector<sf::CircleShape> createParkingPillars() {
 	std::vector<sf::CircleShape> pillars;
@@ -193,8 +200,8 @@ static std::vector<sf::CircleShape> createParkingPillars() {
 	pillar.setFillColor(sf::Color(100, 100, 100));
 	pillar.setOutlineColor(sf::Color::Red);
 	pillar.setOutlineThickness(5);
-	pillar.setPosition({ 800, 500 });
-	pillars.push_back(pillar);
+	//pillar.setPosition({ 800, 500 });
+	//pillars.push_back(pillar); Old pillar, car spawns on top it and starts to beep immediately, its annoying and correction was needed
 
 	pillar.setPosition({ 1550, 800 });
 	pillars.push_back(pillar);
@@ -277,7 +284,7 @@ int main() {
 				// Check if mouse is hovering over any pillar
 				for (auto it = pillars.begin(); it != pillars.end(); ++it) {
 					sf::Vector2f pillarCenter = it->getPosition() +
-					sf::Vector2f(constants::PILLAR_RADIUS, constants::PILLAR_RADIUS);
+						sf::Vector2f(constants::PILLAR_RADIUS, constants::PILLAR_RADIUS);
 					float distance = calculateDistance(mousePosF, pillarCenter);
 
 					// If mouse is within pillar radius, remove it
@@ -356,7 +363,6 @@ int main() {
 			window.draw(pillar);
 		}
 		window.draw(carSprite);
-		carSprite.setScale({ constants::SCALE_DOWN_FACTOR, constants::SCALE_DOWN_FACTOR });
 
 		// Draw diagonal sensors on top
 		for (const auto& sensor : diagonalSensors) {

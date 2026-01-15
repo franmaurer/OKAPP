@@ -201,7 +201,8 @@ static std::vector<sf::CircleShape> createParkingPillars() {
 	pillar.setOutlineColor(sf::Color::Red);
 	pillar.setOutlineThickness(5);
 	//pillar.setPosition({ 800, 500 });
-	//pillars.push_back(pillar); Old pillar, car spawns on top it and starts to beep immediately, its annoying and correction was needed
+	//pillars.push_back(pillar); Old pillar, car spawns on top it and starts to beep immediately, 
+	// its annoying and correction was needed anyway
 
 	pillar.setPosition({ 1550, 800 });
 	pillars.push_back(pillar);

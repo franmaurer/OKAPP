@@ -26,11 +26,18 @@ namespace constants {
 	constexpr unsigned int WINDOW_WIDTH = 1920U;
 	constexpr unsigned int WINDOW_HEIGHT = 1080U;
 	constexpr float PI = 3.14159265358979323846f;
+	constexpr unsigned int FRAMERATE_LIMIT = 60U;
 
 	// Parking sensor rectangle dimensions
 	constexpr float SENSOR_WIDTH = 950.0F;
 	constexpr float SENSOR_HEIGHT = 500.0F;
+	constexpr float SENSOR_THICKNESS = 2.0F;
 	constexpr float PILLAR_RADIUS = 25.0F;
+
+	// Parking sensor trigger distances
+	constexpr float SENSOR_MIN_DISTANCE = 125.0F;
+	constexpr float SENSOR_MEDIUM_DISTANCE = 140.0F;
+	constexpr float SENSOR_LONG_DISTANCE = 180.0F;
 
 	// Simulation and layout
 	constexpr std::size_t SENSOR_COUNT = 5U; // 1 for car bounds + 4 diagonal sensors
@@ -43,6 +50,18 @@ namespace constants {
 	// Diagonal sensor properties
 	constexpr float SENSOR_CIRCLE_RADIUS = 15.0F;
 	constexpr float SENSOR_DETECTION_RANGE = 150.0F;
+
+	//T Matrix
+	constexpr float MATRIX_START_POINT = 1.0F;
+
+	//COLORS
+	const sf::Color COLOR_YELLOW{255, 225, 0, 255};//YELLOW
+	const sf::Color COLOR_GREEN{ 0, 225, 0, 255 };//GREEN
+	const sf::Color COLOR_RED{255, 0, 0, 255};//RED
+	const sf::Color COLOR_ORANGE{255, 120, 0, 255};//ORANGE
+	const sf::Color COLOR_GREY{ 100, 100, 100, 255 };//GREY
+	
+
 }
 
 // ===============================
@@ -69,7 +88,7 @@ static std::vector<sf::RectangleShape> createSensorIndicators() {
 	constexpr float START_Y = 20.0F;
 
 	sf::RectangleShape sensor({ constants::SENSOR_WIDTH, constants::SENSOR_HEIGHT });
-	sensor.setFillColor(sf::Color(235, 225, 52, 0));
+	sensor.setFillColor(constants::COLOR_YELLOW);
 	sensor.setPosition({ START_X, START_Y });
 	sensor.setScale({ constants::SCALE_DOWN_FACTOR, constants::SCALE_DOWN_FACTOR });
 	sensors.push_back(sensor);
@@ -85,9 +104,9 @@ static std::vector<sf::CircleShape> createDiagonalSensors() {
 	for (std::size_t i = 0U; i < 4U; ++i) {
 		sf::CircleShape sensor(constants::SENSOR_CIRCLE_RADIUS);
 		sensor.setOrigin({ constants::SENSOR_CIRCLE_RADIUS, constants::SENSOR_CIRCLE_RADIUS });
-		sensor.setFillColor(sf::Color(0, 255, 0, 200)); // Green by default
+		sensor.setFillColor(constants::COLOR_GREEN); // Green by default
 		sensor.setOutlineColor(sf::Color::White);
-		sensor.setOutlineThickness(2.0f);
+		sensor.setOutlineThickness(constants::SENSOR_THICKNESS);
 		sensors.push_back(sensor);
 	}
 
@@ -108,10 +127,10 @@ std::array<sf::Vector2f, 4> getCorners(const sf::RectangleShape& r) {
 	sf::Vector2f size = r.getSize();
 
 	return {
-		t.transformPoint({0.f,       0.f}),
-		t.transformPoint({size.x,    0.f}),
+		t.transformPoint({constants::MATRIX_START_POINT, constants::MATRIX_START_POINT}),
+		t.transformPoint({size.x, constants::MATRIX_START_POINT}),
 		t.transformPoint({size.x, size.y}),
-		t.transformPoint({0.f,    size.y})
+		t.transformPoint({constants::MATRIX_START_POINT, size.y})
 	};
 }
 
@@ -149,17 +168,17 @@ static void updateDiagonalSensorPositions(
 		}
 
 		// Change color based on distance
-		if (minDistance < 125.0F) {
-			diagonalSensors[i].setFillColor(sf::Color(255, 0, 0, 200)); // Red - very close
+		if (minDistance < constants::SENSOR_MIN_DISTANCE) {
+			diagonalSensors[i].setFillColor(constants::COLOR_RED); // Red - very close
 		}
-		else if (minDistance < 140.0F) {
-			diagonalSensors[i].setFillColor(sf::Color(255, 165, 0, 200)); // Orange - close
+		else if (minDistance < constants::SENSOR_MEDIUM_DISTANCE) {
+			diagonalSensors[i].setFillColor(constants::COLOR_ORANGE); // Orange - close
 		}
-		else if (minDistance < 180.0F) {
-			diagonalSensors[i].setFillColor(sf::Color(255, 255, 0, 200)); // Yellow - medium
+		else if (minDistance < constants::SENSOR_LONG_DISTANCE) {
+			diagonalSensors[i].setFillColor(constants::COLOR_YELLOW); // Yellow - medium
 		}
 		else {
-			diagonalSensors[i].setFillColor(sf::Color(0, 255, 0, 200)); // Green - safe
+			diagonalSensors[i].setFillColor(constants::COLOR_GREEN); // Green - safe
 		}
 	}
 }
@@ -193,12 +212,12 @@ static float calcClosestPillarDistance(std::vector<sf::CircleShape>& pillars, co
 // The three hard code, parking pillars, they too can be removed with a right click
 static std::vector<sf::CircleShape> createParkingPillars() {
 	std::vector<sf::CircleShape> pillars;
-	pillars.reserve(3u);
+	pillars.reserve(2U);
 	sf::CircleShape pillar;
 
 	pillar.setRadius(constants::PILLAR_RADIUS);
-	pillar.setFillColor(sf::Color(100, 100, 100));
-	pillar.setOutlineColor(sf::Color::Red);
+	pillar.setFillColor(constants::COLOR_GREY);
+	pillar.setOutlineColor(constants::COLOR_RED);
 	pillar.setOutlineThickness(5);
 	//pillar.setPosition({ 800, 500 });
 	//pillars.push_back(pillar); Old pillar, car spawns on top it and starts to beep immediately, 
@@ -223,7 +242,7 @@ int main() {
 		"Car Parking Sensor Simulation - Four Diagonal Sensors",
 		sf::State::Windowed
 	);
-	window.setFramerateLimit(60U);
+	window.setFramerateLimit(constants::FRAMERATE_LIMIT);
 
 	const sf::Texture carTexture = loadTextureOrExit("assets/car_background.png");
 	sf::Sprite carSprite(carTexture);
@@ -334,15 +353,15 @@ int main() {
 		float distance = calcClosestPillarDistance(pillars, sensors[0]);
 
 		// Sound feedback based on distance
-		if (distance < 125.0f) {
+		if (distance < constants::SENSOR_MIN_DISTANCE) {
 			interval = 0.15f;
 			pitch = 1.5f;
 		}
-		else if (distance < 140.f) {
+		else if (distance < constants::SENSOR_MEDIUM_DISTANCE) {
 			interval = 0.4f;
 			pitch = 1.2f;
 		}
-		else if (distance < 180.f) {
+		else if (distance < constants::SENSOR_LONG_DISTANCE) {
 			interval = 1.0f;
 			pitch = 1.0f;
 		}
